@@ -1,71 +1,203 @@
-# tejas-agent README
+# Tejas AI Agent
 
-This is the README for your extension "tejas-agent". After writing up a brief description, we recommend including the following sections.
-
-## Features
-
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
-
-For example if there is an image subfolder under your extension project workspace:
-
-\!\[feature X\]\(images/feature-x.png\)
-
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
-
-## Requirements
-
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
-
-## Extension Settings
-
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
-
-For example:
-
-This extension contributes the following settings:
-
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
-
-## Known Issues
-
-Calling out known issues can help limit users opening duplicate issues against your extension.
-
-## Release Notes
-
-Users appreciate release notes as you update your extension.
-
-### 1.0.0
-
-Initial release of ...
-
-### 1.0.1
-
-Fixed issue #.
-
-### 1.1.0
-
-Added features X, Y, and Z.
+A Claude Code-like AI coding assistant running inside VS Code. It can read, write, and search files, run terminal commands, and chat with vision support — all from a sidebar panel powered by Anthropic's Claude.
 
 ---
 
-## Following extension guidelines
+## Features
 
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
+- **Agentic tool use** — AI autonomously reads, writes, searches files, and runs terminal commands
+- **Streaming responses** — real-time character-by-character output
+- **Markdown rendering** — code blocks, bold, headings render properly
+- **Active file context** — currently open file is automatically shared with the AI
+- **Image / vision support** — attach screenshots or images via the 📎 button
+- **@file mention** — type `@filename` for autocomplete; file content is automatically included
+- **Tool activity log** — sidebar shows what the AI is doing in real time
+- **Permission system** — dangerous actions (file write, terminal commands) require Allow/Deny confirmation
+- **Persistent history** — chat history survives VS Code restarts
+- **Secure API key storage** — key is stored in OS-level encrypted SecretStorage, no `.env` required
 
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
+---
 
-## Working with Markdown
+## Setup
 
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
+### 1. Clone the repository
 
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
+```bash
+git clone https://github.com/Tejash8299/tejas-ai-agent.git
+cd tejas-ai-agent
+```
 
-## For more information
+### 2. Install dependencies
 
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
+```bash
+npm install
+```
 
-**Enjoy!**
+### 3. Open in VS Code
+
+```bash
+code .
+```
+
+### 4. Run the extension
+
+Press `F5` — an **Extension Development Host** window will open with the extension loaded.
+
+The **Tejas AI** icon will appear in the Activity Bar on the left.
+
+---
+
+## API Key Setup
+
+The extension needs an Anthropic API key to work. It is stored securely in VS Code's encrypted SecretStorage (OS-level protected via DPAPI on Windows). The key is **never written to disk in plain text**.
+
+There are 3 ways to set the key:
+
+### Option 1 — Auto prompt (first-time users)
+
+If no key exists in SecretStorage and no `.env` file is present, the extension automatically shows an input box on startup:
+
+```
+Enter your Anthropic API Key (sk-ant-...)
+```
+
+Enter your key and press Enter — it is saved to SecretStorage immediately.
+
+### Option 2 — Command Palette
+
+```
+Ctrl+Shift+P → "Tejas AI: Set API Key"
+```
+
+Enter your key in the password field. Use this anytime to update or change the key.
+
+### Option 3 — `.env` file (development / migration)
+
+Create a `.env` file in the project root:
+
+```
+ANTHROPIC_API_KEY=sk-ant-xxxxxxxxxxxxxxxx
+```
+
+On first startup, the extension reads the key from `.env` and **automatically migrates it to SecretStorage**. After migration, the `.env` file is no longer needed.
+
+> **Note:** The `.env` file is listed in `.gitignore` and will never be committed to Git.
+
+---
+
+## How Tools Work
+
+The AI has access to 5 tools. Each tool use is shown as a blue chip in the sidebar.
+
+| Tool | Description | Requires Approval |
+|---|---|---|
+| `read_file` | Read a file from the workspace | No |
+| `list_files` | List files in a directory | No |
+| `search_code` | Search for text across workspace files | No |
+| `write_file` | Create or overwrite a file | **Yes** |
+| `run_command` | Execute a terminal command | **Yes** |
+
+### Dangerous tool approval flow
+
+```
+AI wants to use write_file or run_command
+              |
+              v
+Yellow confirmation card appears in sidebar:
+"⚠️ Allow this action?"
+Shows tool name + file path or command
+              |
+       -------+-------
+       |               |
+  [✓ Allow]        [✗ Deny]
+       |               |
+  Tool executes    AI receives "denied"
+                   and suggests an alternative
+```
+
+### Workspace boundary protection
+
+The AI can only access files **inside the workspace folder**. Any attempt to read, write, or list files outside the workspace is blocked:
+
+```
+Error: Access denied: "../../../etc/hosts" is outside the workspace
+```
+
+---
+
+## @File Mention
+
+Type `@` in the chat input to trigger a file autocomplete dropdown. Select a file and its full content will be appended to your message before sending to Claude.
+
+**Example:**
+```
+Explain what @src/services/openai.ts does
+```
+
+---
+
+## Project Structure
+
+```
+tejas-agent/
+├── src/
+│   ├── extension.ts              # Entry point — SecretStorage, key migration, command registration
+│   ├── services/
+│   │   └── openai.ts             # Anthropic API client, agentic loop, streaming, tool execution
+│   ├── sidebar/
+│   │   └── SidebarProvider.ts    # Webview UI, chat rendering, history, permission system
+│   └── tools/
+│       └── index.ts              # Tool definitions, executeTool() dispatcher, safePath()
+├── .env                          # Optional — gitignored, auto-migrated to SecretStorage
+├── package.json
+└── README.md
+```
+
+---
+
+## Key Files Explained
+
+### `extension.ts`
+- `getOrSetApiKey()` — checks SecretStorage → falls back to `.env` → prompts user if neither exists
+- Registers the `tejas-agent.setApiKey` command
+- Passes the resolved API key to `SidebarProvider`
+
+### `services/openai.ts`
+- `runAgentLoop()` — the main agentic `while` loop
+- Streaming via `messages.stream()` and `stream.on('text', ...)`
+- Handles `stop_reason === 'tool_use'` — executes tools and feeds results back to Claude
+- `DANGEROUS_TOOLS` list — calls `onConfirm()` callback before executing sensitive tools
+
+### `sidebar/SidebarProvider.ts`
+- Inline Webview HTML/CSS/JS (no external files)
+- `pendingConfirms` Map — Promise-based approval system for dangerous tools
+- `workspaceState` — persists `agentHistory` and `displayHistory` across restarts
+- `@mention` regex parser — reads mentioned files and injects content into the message
+
+### `tools/index.ts`
+- `toolDefinitions` — Anthropic `Tool[]` schema passed to the API
+- `executeTool()` — switch-case dispatcher for all 5 tools
+- `safePath()` — resolves and validates paths to prevent directory traversal attacks
+
+---
+
+## Release Notes
+
+### 0.0.3
+- Secure API key storage via VS Code SecretStorage (auto-migration from `.env`)
+- Workspace path traversal prevention (`safePath()`)
+- `Tejas AI: Set API Key` command
+
+### 0.0.2
+- Image upload and vision support
+- Tool activity log
+- `@file` mention autocomplete
+- Permission system (Allow/Deny for dangerous tools)
+- Improved input UI
+
+### 0.0.1
+- Initial release
+- Agentic tool use (read, write, list, search, run command)
+- Streaming responses and markdown rendering
+- Active file context and persistent chat history
