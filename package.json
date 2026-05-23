@@ -1,12 +1,30 @@
 {
   "name": "tejas-agent",
-  "displayName": "tejas-agent",
-  "description": "AI coding agent like Claude Code",
-  "version": "0.0.1",
+  "displayName": "Tejas AI Agent",
+  "description": "A Claude-powered AI coding assistant for VS Code — read, write, search files, run commands, and chat with vision support.",
+  "version": "0.0.3",
+  "publisher": "tejasparmar",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Tejash8299/tejas-ai-agent"
+  },
+  "homepage": "https://github.com/Tejash8299/tejas-ai-agent#readme",
+  "bugs": {
+    "url": "https://github.com/Tejash8299/tejas-ai-agent/issues"
+  },
+  "keywords": [
+    "ai",
+    "claude",
+    "anthropic",
+    "coding assistant",
+    "agent"
+  ],
   "engines": {
     "vscode": "^1.120.0"
   },
   "categories": [
+    "AI",
+    "Chat",
     "Other"
   ],
   "activationEvents": [
