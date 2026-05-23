@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import Anthropic from '@anthropic-ai/sdk';
-import { runAgentLoop, ImageInput } from '../services/openai';
+import { runAgentLoop, setApiKey, ImageInput } from '../services/openai';
 
 interface DisplayMessage {
   role: 'user' | 'assistant' | 'tool';
@@ -22,6 +22,10 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     const savedDisplay = context.workspaceState.get<string>('displayHistory');
     if (savedAgent) { try { this.agentHistory = JSON.parse(savedAgent); } catch {} }
     if (savedDisplay) { try { this.displayHistory = JSON.parse(savedDisplay); } catch {} }
+  }
+
+  public setApiKey(key: string) {
+    setApiKey(key);
   }
 
   private saveHistory() {

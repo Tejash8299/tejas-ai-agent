@@ -34,8 +34,8 @@
     },
     "commands": [
       {
-        "command": "tejas-agent.helloWorld",
-        "title": "Hello World"
+        "command": "tejas-agent.setApiKey",
+        "title": "Tejas AI: Set API Key"
       }
     ]
   },

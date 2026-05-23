@@ -33,13 +33,20 @@ function getConfirmInfo(name: string, input: Record<string, string>): string {
   return JSON.stringify(input).slice(0, 100);
 }
 
-let client: Anthropic | null = null;
+let _client: Anthropic | null = null;
+let _apiKey = '';
+
+export function setApiKey(key: string) {
+  if (key !== _apiKey) {
+    _apiKey = key;
+    _client = null;
+  }
+}
 
 function getClient(): Anthropic {
-  if (!client) {
-    client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-  }
-  return client;
+  if (!_apiKey) { throw new Error('API key not set. Use "Tejas AI: Set API Key" command.'); }
+  if (!_client) { _client = new Anthropic({ apiKey: _apiKey }); }
+  return _client;
 }
 
 export async function runAgentLoop(

@@ -75,6 +75,15 @@ function getWorkspacePath(): string {
   return folders[0].uri.fsPath;
 }
 
+function safePath(workspacePath: string, inputPath: string): string {
+  const resolved = path.resolve(workspacePath, inputPath);
+  const normalized = path.normalize(workspacePath);
+  if (resolved !== normalized && !resolved.startsWith(normalized + path.sep)) {
+    throw new Error(`Access denied: "${inputPath}" is outside the workspace`);
+  }
+  return resolved;
+}
+
 async function searchInFiles(workspacePath: string, query: string, fileGlob?: string): Promise<string> {
   const include = fileGlob || '**/*';
   const uris = await vscode.workspace.findFiles(include, '**/node_modules/**', 50);
@@ -114,13 +123,13 @@ export async function executeTool(
   switch (name) {
     case 'read_file': {
       onStatus?.(`Reading: ${input.path}`);
-      const content = await fs.readFile(path.join(workspacePath, input.path), 'utf-8');
+      const content = await fs.readFile(safePath(workspacePath, input.path), 'utf-8');
       return content;
     }
 
     case 'write_file': {
       onStatus?.(`Writing: ${input.path}`);
-      const filePath = path.join(workspacePath, input.path);
+      const filePath = safePath(workspacePath, input.path);
       await fs.mkdir(path.dirname(filePath), { recursive: true });
       await fs.writeFile(filePath, input.content, 'utf-8');
       return `Successfully wrote ${input.path}`;
@@ -128,7 +137,7 @@ export async function executeTool(
 
     case 'list_files': {
       onStatus?.(`Listing: ${input.path || 'workspace root'}`);
-      const dirPath = path.join(workspacePath, input.path || '.');
+      const dirPath = safePath(workspacePath, input.path || '.');
       const entries = await fs.readdir(dirPath, { withFileTypes: true });
       return entries.map(e => `${e.isDirectory() ? '[DIR] ' : '[FILE]'} ${e.name}`).join('\n');
     }
