@@ -50,7 +50,17 @@ The **Tejas AI** icon will appear in the Activity Bar on the left.
 
 ## API Key Setup
 
-The extension needs an Anthropic API key to work. It is stored securely in VS Code's encrypted SecretStorage (OS-level protected via DPAPI on Windows). The key is **never written to disk in plain text**.
+The extension requires your own **Anthropic API key** to work.
+
+**Get your API key:**
+1. Go to [https://console.anthropic.com](https://console.anthropic.com)
+2. Sign up or log in
+3. Navigate to **API Keys** → **Create Key**
+4. Copy the key (starts with `sk-ant-...`)
+
+> New accounts get free credits to get started. The extension uses Claude Haiku by default which is very cost-efficient.
+
+The key is stored securely in VS Code's encrypted SecretStorage (OS-level protected). It is **never written to disk in plain text** and **never shared**.
 
 There are 3 ways to set the key:
 
