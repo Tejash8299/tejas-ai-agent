@@ -1,10 +1,37 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { toolDefinitions, executeTool } from '../tools';
 
+export interface ImageInput {
+  mediaType: string;
+  data: string;
+}
+
 const SYSTEM_PROMPT = `You are Tejas AI Agent, a powerful coding assistant running inside VS Code.
 You have tools to read, write, search, list files, and run shell commands in the user's workspace.
 When the user asks you to do something with their code, use your tools to actually do it.
 Be concise. After completing a task, briefly summarize what you did.`;
+
+const TOOL_ICONS: Record<string, string> = {
+  read_file: '📖',
+  write_file: '✏️',
+  list_files: '📂',
+  search_code: '🔍',
+  run_command: '⚡'
+};
+
+const DANGEROUS_TOOLS = ['write_file', 'run_command'];
+
+function formatToolActivity(name: string, input: Record<string, string>): string {
+  const icon = TOOL_ICONS[name] || '🔧';
+  const info = input.path || input.query || input.command || '';
+  return `${icon} ${name.replace(/_/g, ' ')}: ${info}`;
+}
+
+function getConfirmInfo(name: string, input: Record<string, string>): string {
+  if (name === 'write_file') { return `File: ${input.path}`; }
+  if (name === 'run_command') { return `Command: ${input.command}`; }
+  return JSON.stringify(input).slice(0, 100);
+}
 
 let client: Anthropic | null = null;
 
@@ -19,13 +46,32 @@ export async function runAgentLoop(
   userMessage: string,
   history: Anthropic.MessageParam[],
   activeFile: string | null,
+  images: ImageInput[],
   onStatus: (msg: string) => void,
-  onChunk: (text: string) => void
+  onChunk: (text: string) => void,
+  onToolActivity: (msg: string) => void,
+  onConfirm: (toolName: string, info: string) => Promise<boolean>
 ): Promise<{ response: string; updatedHistory: Anthropic.MessageParam[] }> {
-  const messages: Anthropic.MessageParam[] = [
-    ...history,
-    { role: 'user', content: userMessage }
-  ];
+  const messages: Anthropic.MessageParam[] = [...history];
+
+  if (images.length > 0) {
+    messages.push({
+      role: 'user',
+      content: [
+        ...images.map(img => ({
+          type: 'image' as const,
+          source: {
+            type: 'base64' as const,
+            media_type: img.mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp',
+            data: img.data
+          }
+        })),
+        { type: 'text' as const, text: userMessage }
+      ]
+    });
+  } else {
+    messages.push({ role: 'user', content: userMessage });
+  }
 
   const system = activeFile
     ? `${SYSTEM_PROMPT}\n\nThe user currently has "${activeFile}" open in their editor.`
@@ -61,13 +107,27 @@ export async function runAgentLoop(
 
       for (const block of response.content) {
         if (block.type === 'tool_use') {
-          onStatus(`${block.name}: ${JSON.stringify(block.input).slice(0, 60)}...`);
+          const input = block.input as Record<string, string>;
+
+          if (DANGEROUS_TOOLS.includes(block.name)) {
+            const info = getConfirmInfo(block.name, input);
+            const allowed = await onConfirm(block.name, info);
+            if (!allowed) {
+              onToolActivity(`🚫 Denied: ${block.name.replace(/_/g, ' ')}`);
+              toolResults.push({
+                type: 'tool_result',
+                tool_use_id: block.id,
+                content: 'User denied this action.',
+                is_error: true
+              });
+              continue;
+            }
+          }
+
+          onToolActivity(formatToolActivity(block.name, input));
+
           try {
-            const result = await executeTool(
-              block.name,
-              block.input as Record<string, string>,
-              onStatus
-            );
+            const result = await executeTool(block.name, input, onStatus);
             toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: result });
           } catch (err: any) {
             toolResults.push({ type: 'tool_result', tool_use_id: block.id, content: `Error: ${err.message}`, is_error: true });
