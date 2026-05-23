@@ -7,7 +7,7 @@ export function activate(context: vscode.ExtensionContext) {
 
     dotenv.config({ path: path.join(context.extensionPath, '.env') });
 
-    const sidebarProvider = new SidebarProvider();
+    const sidebarProvider = new SidebarProvider(context);
 
     context.subscriptions.push(
         vscode.window.registerWebviewViewProvider(
