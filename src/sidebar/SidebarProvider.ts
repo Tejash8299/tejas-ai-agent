@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
-import { askAI, Message } from '../services/openai';
+import Anthropic from '@anthropic-ai/sdk';
+import { runAgentLoop } from '../services/openai';
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
 
   public static readonly viewType = 'tejas-agent.sidebar';
 
-  private chatHistory: Message[] = [];
+  private agentHistory: Anthropic.MessageParam[] = [];
 
   constructor() {}
 
@@ -17,20 +18,25 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async (message) => {
 
       if (message.type === 'prompt') {
-
-        this.chatHistory.push({ role: 'user', content: message.value });
+        const sendStatus = (msg: string) => {
+          webviewView.webview.postMessage({ type: 'status', value: msg });
+        };
 
         try {
-
-          const response = await askAI(this.chatHistory);
-          this.chatHistory.push({ role: 'assistant', content: response });
-
+          const { response, updatedHistory } = await runAgentLoop(
+            message.value,
+            this.agentHistory,
+            sendStatus
+          );
+          this.agentHistory = updatedHistory;
           webviewView.webview.postMessage({ type: 'response', value: response });
-
         } catch (error: any) {
-
           webviewView.webview.postMessage({ type: 'error', value: error.message });
         }
+      }
+
+      if (message.type === 'clear') {
+        this.agentHistory = [];
       }
     });
   }
@@ -51,7 +57,23 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             flex-direction: column;
             height: 100vh;
           }
-          h2 { color: white; margin-bottom: 10px; font-size: 14px; }
+          .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+          }
+          h2 { color: white; font-size: 14px; }
+          #clearBtn {
+            background: none;
+            border: 1px solid #555;
+            color: #888;
+            padding: 2px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 11px;
+          }
+          #clearBtn:hover { border-color: #888; color: #ccc; }
           #chat {
             flex: 1;
             overflow-y: auto;
@@ -72,7 +94,16 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
           .user { background: #0e639c; color: white; align-self: flex-end; }
           .assistant { background: #2d2d2d; color: #ddd; align-self: flex-start; }
           .error { background: #5a1d1d; color: #f48771; align-self: flex-start; }
-          .thinking { color: #888; font-style: italic; font-size: 12px; align-self: flex-start; }
+          .thinking {
+            color: #888;
+            font-style: italic;
+            font-size: 12px;
+            align-self: flex-start;
+            padding: 6px 10px;
+            background: #252525;
+            border-radius: 6px;
+            border-left: 2px solid #0e639c;
+          }
           #input-area { display: flex; flex-direction: column; gap: 6px; }
           textarea {
             width: 100%;
@@ -88,7 +119,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             outline: none;
           }
           textarea:focus { border-color: #0e639c; }
-          button {
+          button#sendBtn {
             padding: 8px;
             cursor: pointer;
             background: #0e639c;
@@ -97,15 +128,18 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             border-radius: 4px;
             font-size: 13px;
           }
-          button:hover:not(:disabled) { background: #1177bb; }
-          button:disabled { opacity: 0.5; cursor: not-allowed; }
+          button#sendBtn:hover:not(:disabled) { background: #1177bb; }
+          button#sendBtn:disabled { opacity: 0.5; cursor: not-allowed; }
         </style>
       </head>
       <body>
-        <h2>Tejas AI Agent</h2>
+        <div class="header">
+          <h2>Tejas AI Agent</h2>
+          <button id="clearBtn" onclick="clearChat()">Clear</button>
+        </div>
         <div id="chat"></div>
         <div id="input-area">
-          <textarea id="prompt" placeholder="Ask AI anything... (Shift+Enter for new line, Enter to send)"></textarea>
+          <textarea id="prompt" placeholder="Ask anything... read files, write code, search, explain (Shift+Enter for new line, Enter to send)"></textarea>
           <button id="sendBtn" onclick="sendPrompt()">Send</button>
         </div>
 
@@ -130,8 +164,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             promptEl.value = '';
             sendBtn.disabled = true;
 
-            const thinking = appendMsg('thinking', 'Thinking...');
-            vscode.postMessage({ type: 'prompt', value, _thinkingId: thinking.id });
+            appendMsg('thinking', 'Thinking...');
+            vscode.postMessage({ type: 'prompt', value });
+          }
+
+          function clearChat() {
+            chat.innerHTML = '';
+            vscode.postMessage({ type: 'clear' });
           }
 
           let msgCounter = 0;
@@ -147,6 +186,12 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
           window.addEventListener('message', (event) => {
             const msg = event.data;
+
+            if (msg.type === 'status') {
+              const thinking = chat.querySelector('.thinking');
+              if (thinking) thinking.textContent = msg.value;
+              return;
+            }
 
             const thinking = chat.querySelector('.thinking');
             if (thinking) thinking.remove();
