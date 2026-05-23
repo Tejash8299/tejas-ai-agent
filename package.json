@@ -3,7 +3,7 @@
   "displayName": "Tejas AI Agent",
   "description": "A Claude-powered AI coding assistant for VS Code — read, write, search files, run commands, and chat with vision support.",
   "version": "0.0.3",
-  "publisher": "tejasparmar",
+  "publisher": "tejaspdev",
   "repository": {
     "type": "git",
     "url": "https://github.com/Tejash8299/tejas-ai-agent"
@@ -26,9 +26,6 @@
     "AI",
     "Chat",
     "Other"
-  ],
-  "activationEvents": [
-    "onView:tejas-agent.sidebar"
   ],
   "main": "./dist/extension.js",
   "contributes": {
